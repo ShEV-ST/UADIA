@@ -25,4 +25,6 @@ def audit_resources():
         print("GPU: Библиотека torch не установлена")
     print("--- КОНЕЦ ОТЧЁТА ---")
 
-# audit_resources() # Раскомментировать для запуска
+
+
+audit_resources() # Раскомментировать для запуска
