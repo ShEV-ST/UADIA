@@ -42,7 +42,7 @@ class UniversalAgent:
 # Пример использования
 if __name__ == "__main__":
     universal_agent = UniversalAgent()
-    universal_agent.learn({"Python": "Программный язык", "Java": "Операционная система"})
+    universal_agent.learn({"Python": "Программный язык", "Alphine": "Операционная система"})
     universal_agent.acquire_skill("Y4:0")
     print(universal_agent.process_task("Какой это язык программирования?"))
     print(universal_agent.get_status())
