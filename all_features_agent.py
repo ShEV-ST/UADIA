@@ -1,72 +1,42 @@
-from uagents import Agent, Context, Model
-from fastapi import FastAPI
+from uagents import Agent, Context, Protocol
+from uagents.setup import fund_agent_if_low
+import os
+import requests
+import datetime
+import time
 
-# Создание агента с именем "all_features_agent"
-agent = Agent(name="all_features_agent", seed="all_features_agent_seed", endpoint=["http://localhost:8000/submit"], port="8000")
+# Инициализация агента
+agent = Agent(
+    name="all_features_agent",
+    seed=os.getenv("AGENT_SEED", "all-features-seed-001"), # В продакшене используйте переменную окружения!
+    port=8000,
+    endpoint=["http://localhost:8000/submit"],
+)
 
-# Пример модели сообщения
-class CustomMessage(Model):
-    text: str
+fund_agent_if_low(agent.wallet.address())
 
-class ResponseMessage(Model):
-    response: str
-    
-# Создание FastAPI приложения
-app = FastAPI()
+# Пример протокола для обработки сообщений
+protocol = Protocol(name="info_protocol", version="1.0")
 
-# Обработка GET-запроса на корневой URL
-@app.get("/")
-async def read_root():
-    return {"message": "Агент работает"}
+@protocol.on_message(model=dict, replies=dict)
+async def handle_message(ctx: Context, sender: str, msg: dict):
+    ctx.logger.info(f"Получено сообщение от {sender}: {msg}")
+    await ctx.send(sender, {"status": "received", "timestamp": datetime.datetime.now().isoformat()})
 
-# Интеграция FastAPI приложения с агентом
-# agent.include_router(app)
+agent.include(protocol)
 
-
-# Обработка события запуска
-@agent.on_event("startup")
-async def on_startup(ctx: Context):
-    ctx.logger.info("Агент запущен")
-    ctx.storage.set("startup_count", 0)
-    # Отправка сообщения самому агенту для имитации пользовательского события
-    await ctx.send(ctx.agent.address, CustomMessage(text="Тригерное событие при запуске"))
-
-# Обработка события завершения работы
-@agent.on_event("shutdown")
-async def on_shutdown(ctx: Context):
-    ctx.logger.info("Агент остановлен")
-
-# Обработка пользовательского события
-@agent.on_message(model=CustomMessage)
-async def on_custom_event(ctx: Context, sender: str, message: CustomMessage):
-    ctx.logger.info(f"Произошло пользовательское событие с сообщением: {message.text}")
-
-# Обработка сообщения
-@agent.on_message(model=CustomMessage)
-async def handle_message(ctx: Context, sender: str, message: CustomMessage):
-    ctx.logger.info(f'Полученное сообщение: {message.text}')
-    await ctx.send(sender, ResponseMessage(response="Сообщение получено."))
-
-# Обработка интервала
+# Интервальная задача (каждые 15 секунд)
 @agent.on_interval(period=15.0)
-async def on_interval(ctx: Context):
-    startup_count = ctx.storage.get("startup_count")
-    if startup_count is None:
-        startup_count = 0
-    ctx.logger.info(f"Agent has started {startup_count} times.")
-    ctx.storage.set("startup_count", startup_count + 1)
+async def interval_task(ctx: Context):
+    ctx.logger.info(f"Интервальная задача выполнена в {datetime.datetime.now().isoformat()}")
 
-# Обработка запросов
-@agent.on_query(model=CustomMessage, replies={ResponseMessage})
-async def query_handler(ctx: Context, sender: str, query: CustomMessage):
-    ctx.logger.info(f"Получен запрос: {query.text}")
-    await ctx.send(sender, ResponseMessage(response="Запрос обработан"))
+# REST API Endpoint (ИСПРАВЛЕНО: добавлен аргумент response)
+@agent.on_rest_get("/health", dict, response=dict)
+async def health_check(ctx: Context, response):
+    """Проверка здоровья агента"""
+    ctx.logger.info("Запрос на проверку здоровья получен")
+    return {"status": "healthy", "time": datetime.datetime.now().isoformat()}
 
-@agent.on_rest_get("/my-test-url")
-async def test_handler(ctx, request):
-    ctx.logger.info(f"Получен запрос: {request}")
-    return ResponseMessage(response="my test URL")
-    
-
+# Запуск агента
 if __name__ == "__main__":
     agent.run()
